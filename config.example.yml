@@ -1,0 +1,106 @@
+# traefik-opnsense-sync configuration
+# ==============================================================================
+# Precedence (lowest → highest):
+#   1) Built-in defaults (see code)
+#   2) YAML file (this file)
+#   3) Environment variables with prefix TOS_
+#
+# Environment variables:
+#   - Key mapping: dots become underscores. For example:
+#       traefik.base_url        → TOS_TRAEFIK_BASE_URL
+#       opnsense.api_secret     → TOS_OPNSENSE_API_SECRET
+#       reconcile.description_tag → TOS_RECONCILE_DESCRIPTION_TAG
+#   - Arrays: may be given as CSV in env, e.g.:
+#       TOS_TRAEFIK_INCLUDE_ENTRYPOINTS="web,websecure"
+#   - *_FILE secrets: if TOS_XXX_FILE is set, its file contents are read and
+#     exported as TOS_XXX if TOS_XXX is not already set.
+#
+# Config file location:
+#   - If env TOS_CONFIG is set, that path is used.
+#   - Otherwise, the loader looks for ./config.yaml or ./config.yml.
+#
+# Durations:
+#   - Use Go duration strings: "30s", "5m", "1h".
+# ==============================================================================
+
+# Config Starts Here
+
+# Optional. Default: false
+# dry_run: false
+
+traefik:
+  # REQUIRED (no default): Base URL to Traefik API
+  # Examples: "http://192.168.10.10:8080" or "https://traefik.mydomain.com"
+  # Note: if you want/need to access the Traefik API over Traefik itself, make sure
+  # you have a manual DNS override set for it. This is only manual DNS override you'd need
+  base_url: "http://192.168.10.10:8080"
+
+  # Optional list of entryPoints to include. If set, only routers using these entryPoints are considered
+  # (default: [] (all entryPoints included))
+  # include_entrypoints:
+  #   - "lan-https"
+  #   - "websecure"
+
+  # Optional list of routers to ignore
+  # (default: [] (no routers ignored))
+  # ignore_routers:
+  #   - "traefik-dashboard@file"
+  #   - "noop@internal"
+
+  # Optional list of providers to include exclusively. Mutually exclusive with ignore_providers
+  # (default: [] (all providers included))
+  # include_providers:
+  #   - "file"
+  #   - "docker"
+
+  # Optional list of providers to ignore. Mutually exclusive with include_providers
+  # (default: [] (no providers ignored))
+  # ignore_providers:
+  #   - "internal"
+
+  # Optional basic auth for Traefik API
+  # (default: "")
+  # username: ""
+  # password: ""
+
+  # Optional: verify TLS when base_url
+  # (default: true)
+  # verify_tls: false
+
+opnsense:
+  # REQUIRED (no default): Base URL to OPNsense
+  # Examples: "https://192.168.10.1" or "https://opnsense.internal.local"
+  base_url: "https://192.168.10.1"
+
+  # REQUIRED (no default): OPNSense API key with correct permissions
+  # See README for instructions on creating an API key in OPNsense with correct permissions
+  api_key: "YOUR_OPNSENSE_API_KEY"
+
+  # REQUIRED (no default): API secret matching the key above
+  api_secret: "YOUR_OPNSENSE_API_SECRET"
+
+  # REQUIRED (no default): FQDN of your reverse proxy DNS host override in OPNsense
+  # See README for more details and instructions
+  host_override: "reverse-proxy.mydomain.com"
+
+  # Optional: verify TLS when base_url
+  # (default: true)
+  # verify_tls: false
+
+regex:
+# Optional: maximum number of strings to generate per regex (HostRegexp rules).
+# Must be > 0. Default: 5
+# max_generated: 10
+
+# Optional: path or executable name for exrex. If "exrex" is in PATH, this is fine.
+# (default: "exrex")
+# exrex_path: "/home/user/exrex/exrex"
+
+reconcile:
+# Optional: sync interval. Must be > 0.
+# (default: "30s")
+# interval: "1m"
+
+# Optional: string written into OPNsense alias descriptions for traceability
+# Default: "Managed by traefik-opnsense-sync"
+# description_tag: "DONT TOUCH ME - automatically synced"
