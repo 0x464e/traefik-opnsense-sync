@@ -4,8 +4,9 @@ import (
 	"context"
 	"net/http"
 	"strings"
-	"traefik-opnsense-sync/internal/httpx"
-	"traefik-opnsense-sync/internal/model"
+
+	"github.com/0x464e/traefik-opnsense-sync/internal/httpx"
+	"github.com/0x464e/traefik-opnsense-sync/internal/model"
 )
 
 const (

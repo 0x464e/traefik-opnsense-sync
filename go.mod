@@ -1,4 +1,4 @@
-module traefik-opnsense-sync
+module github.com/0x464e/traefik-opnsense-sync
 
 go 1.25
 

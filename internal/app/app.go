@@ -5,8 +5,8 @@ import (
 	"log"
 	"time"
 
-	"traefik-opnsense-sync/internal/config"
-	"traefik-opnsense-sync/internal/syncer"
+	"github.com/0x464e/traefik-opnsense-sync/internal/config"
+	"github.com/0x464e/traefik-opnsense-sync/internal/syncer"
 )
 
 type App struct {

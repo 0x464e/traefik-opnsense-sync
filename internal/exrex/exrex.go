@@ -11,7 +11,8 @@ import (
 	"strings"
 	"sync"
 	"time"
-	"traefik-opnsense-sync/internal/config"
+
+	"github.com/0x464e/traefik-opnsense-sync/internal/config"
 )
 
 type Exrex struct {

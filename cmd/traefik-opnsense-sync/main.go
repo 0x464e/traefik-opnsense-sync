@@ -5,8 +5,9 @@ import (
 	"log"
 	"os/signal"
 	"syscall"
-	"traefik-opnsense-sync/internal/app"
-	"traefik-opnsense-sync/internal/config"
+
+	"github.com/0x464e/traefik-opnsense-sync/internal/app"
+	"github.com/0x464e/traefik-opnsense-sync/internal/config"
 )
 
 func main() {

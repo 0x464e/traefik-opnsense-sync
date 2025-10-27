@@ -4,7 +4,8 @@ import (
 	"context"
 	"net/http"
 	"strings"
-	"traefik-opnsense-sync/internal/httpx"
+
+	"github.com/0x464e/traefik-opnsense-sync/internal/httpx"
 )
 
 const routersApi = "/api/http/routers"

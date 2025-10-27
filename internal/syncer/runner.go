@@ -4,10 +4,11 @@ import (
 	"context"
 	"errors"
 	"log"
-	"traefik-opnsense-sync/internal/config"
-	"traefik-opnsense-sync/internal/model"
-	"traefik-opnsense-sync/internal/opnsense"
-	"traefik-opnsense-sync/internal/traefik"
+
+	"github.com/0x464e/traefik-opnsense-sync/internal/config"
+	"github.com/0x464e/traefik-opnsense-sync/internal/model"
+	"github.com/0x464e/traefik-opnsense-sync/internal/opnsense"
+	"github.com/0x464e/traefik-opnsense-sync/internal/traefik"
 )
 
 type Runner struct {
