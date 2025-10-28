@@ -1,19 +1,18 @@
 # traefik-opnsense-sync configuration
 # ==============================================================================
 # Precedence (lowest → highest):
-#   1) Built-in defaults (see code)
+#   1) Built-in defaults (documented here, or see the code at internal/config)
 #   2) YAML file (this file)
 #   3) Environment variables with prefix TOS_
 #
 # Environment variables:
 #   - Key mapping: dots become underscores. For example:
-#       traefik.base_url        → TOS_TRAEFIK_BASE_URL
-#       opnsense.api_secret     → TOS_OPNSENSE_API_SECRET
+#       traefik.base_url          → TOS_TRAEFIK_BASE_URL
+#       opnsense.api_secret       → TOS_OPNSENSE_API_SECRET
 #       reconcile.description_tag → TOS_RECONCILE_DESCRIPTION_TAG
 #   - Arrays: may be given as CSV in env, e.g.:
 #       TOS_TRAEFIK_INCLUDE_ENTRYPOINTS="web,websecure"
-#   - *_FILE secrets: if TOS_XXX_FILE is set, its file contents are read and
-#     exported as TOS_XXX if TOS_XXX is not already set.
+#   - *_FILE secrets: if TOS_XXX_FILE is set, its file contents are read and exported as TOS_XXX
 #
 # Config file location:
 #   - If env TOS_CONFIG is set, that path is used.
@@ -26,7 +25,7 @@
 # Config Starts Here
 
 # Optional. Default: false
-# dry_run: false
+dry_run: false
 
 traefik:
   # REQUIRED (no default): Base URL to Traefik API
@@ -45,7 +44,8 @@ traefik:
   # (default: [] (no routers ignored))
   # ignore_routers:
   #   - "traefik-dashboard@file"
-  #   - "noop@internal"
+  #   - "myapp@docker"
+  #   - "http-to-https@internal"
 
   # Optional list of providers to include exclusively. Mutually exclusive with ignore_providers
   # (default: [] (all providers included))
@@ -89,7 +89,7 @@ opnsense:
 
 regex:
 # Optional: maximum number of strings to generate per regex (HostRegexp rules).
-# Must be > 0. Default: 5
+# (default: 5)
 # max_generated: 10
 
 # Optional: path or executable name for exrex. If "exrex" is in PATH, this is fine.

@@ -1,6 +1,6 @@
 package traefik
 
-// Copied and adapted from the Traefik source code
+// Base treeBuilder and parser -related code copied and adapted from the Traefik source code
 
 import (
 	"strings"
