@@ -14,6 +14,32 @@
 
 ---
 
+## Table of Contents
+
+<details>
+    <summary>Click to expand</summary>
+
+<!-- toc -->
+
+- [About The Project](#about-the-project)
+- [Features](#features)
+    + [Traefik](#traefik)
+    + [OPNsense](#opnsense)
+- [Working Principle & Long Explanation](#working-principle--long-explanation)
+    * [Example scenario](#example-scenario)
+    * [How it works](#how-it-works)
+- [Prerequisites](#prerequisites)
+    + [OPNsense API Access](#opnsense-api-access)
+    + [Create Initial Reverse Proxy Host Override](#create-initial-reverse-proxy-host-override)
+    + [Traefik API Access](#traefik-api-access)
+- [Installation & Running](#installation--running)
+- [Configuration](#configuration)
+- [Common Issues](#common-issues)
+
+<!-- tocstop -->
+
+</details>
+
 ## About The Project
 
 Imagine your homelab is nicely automated, you can automatically deploy new applications using IaC/GitOps practises.
