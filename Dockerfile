@@ -37,4 +37,4 @@ WORKDIR /app
 COPY --from=exrex-installer /exrex/exrex.py /exrex/exrex ./
 COPY --from=app-builder /out/traefik-opnsense-sync ./
 
-ENTRYPOINT ["/app/traefik-opnsense-sync"]
+ENTRYPOINT ["./traefik-opnsense-sync"]

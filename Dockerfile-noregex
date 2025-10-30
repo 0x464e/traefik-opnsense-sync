@@ -20,4 +20,4 @@ WORKDIR /app
 
 COPY --from=app-builder /out/traefik-opnsense-sync ./
 
-ENTRYPOINT ["/app/traefik-opnsense-sync"]
+ENTRYPOINT ["./traefik-opnsense-sync"]
