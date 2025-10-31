@@ -16,25 +16,13 @@ if __name__ == '__main__':
 EOF
 
 
-# stage 2: build self-contained binary of this app
-FROM golang:1.25-alpine AS app-builder
-ENV CGO_ENABLED=0 GOOS=linux GOARCH=amd64
-
-WORKDIR /src
-COPY "cmd/" "./cmd/"
-COPY internal/ ./internal/
-COPY go.mod go.sum ./
-
-RUN go mod download && \
-    go build -ldflags="-s" -o /out/traefik-opnsense-sync "./cmd/traefik-opnsense-sync/main.go"
-
-
 # stage 3: final minimal image (not using scrarch due to exrex python dependency)
 FROM gcr.io/distroless/python3-debian12:nonroot AS final
+ARG TARGETPLATFORM
 
 WORKDIR /app
 
 COPY --from=exrex-installer /exrex/exrex.py /exrex/exrex ./
-COPY --from=app-builder /out/traefik-opnsense-sync ./
+COPY $TARGETPLATFORM/traefik-opnsense-sync ./
 
 ENTRYPOINT ["./traefik-opnsense-sync"]
