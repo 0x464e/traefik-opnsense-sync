@@ -1,0 +1,94 @@
+# yaml-language-server: $schema=https://goreleaser.com/static/schema.json
+# vim: set ts=2 sw=2 tw=0 fo=cnqoj
+
+version: 2
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: tos-build
+    env:
+      - CGO_ENABLED=0
+    main: ./cmd/traefik-opnsense-sync
+    binary: traefik-opnsense-sync
+    targets:
+      - linux_amd64
+      - linux_arm64
+      - linux_arm_6
+      - linux_arm_7
+
+      - darwin_amd64
+      - darwin_arm64
+
+      - windows_amd64
+
+      - freebsd_amd64
+      - freebsd_arm64
+
+
+archives:
+  - formats: [ "tar.gz" ]
+    name_template: >-
+      {{ .ProjectName }}_
+      {{- title .Os }}_
+      {{- if eq .Arch "amd64" }}x86_64
+      {{- else if eq .Arch "386" }}i386
+      {{- else }}{{ .Arch }}{{ end }}
+      {{- if .Arm }}v{{ .Arm }}{{ end }}
+    format_overrides:
+      - goos: windows
+        formats: [ zip ]
+
+dockers_v2:
+  - id: tos-docker
+    dockerfile: Dockerfile
+    ids:
+      - tos-build
+    images:
+      - 0x464e/traefik-opnsense-sync
+    tags:
+      - "{{ .Version }}"
+      - latest
+    labels:
+      "org.opencontainers.image.description": "Automatically sync reverse proxy entries from Traefik to OPNsense Unbound DNS"
+      "org.opencontainers.image.created": "{{ .Date }}"
+      "org.opencontainers.image.name": "{{ .ProjectName }}"
+      "org.opencontainers.image.revision": "{{ .FullCommit }}"
+      "org.opencontainers.image.version": "{{ .Version }}"
+      "org.opencontainers.image.source": "{{ .GitURL }}"
+    platforms:
+      - linux/amd64
+      - linux/arm64
+
+  - id: tos-noregex-docker
+    dockerfile: Dockerfile
+    ids:
+      - tos-build
+    images:
+      - 0x464e/traefik-opnsense-sync
+    tags:
+      - "{{ .Version }}-noregex"
+      - noregex
+    labels:
+      "org.opencontainers.image.description": "Automatically sync reverse proxy entries from Traefik to OPNsense Unbound DNS"
+      "org.opencontainers.image.created": "{{ .Date }}"
+      "org.opencontainers.image.name": "{{ .ProjectName }}"
+      "org.opencontainers.image.revision": "{{ .FullCommit }}"
+      "org.opencontainers.image.version": "{{ .Version }}"
+      "org.opencontainers.image.source": "{{ .GitURL }}"
+    platforms:
+      - linux/amd64
+      - linux/arm64
+
+
+release:
+  github:
+    owner: 0x464e
+    name: traefik-opnsense-sync
+  draft: true
+  replace_existing_draft: false
+  use_existing_draft: true
+  mode: keep-existing
+  include_meta: true
