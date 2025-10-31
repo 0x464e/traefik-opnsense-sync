@@ -1,12 +1,18 @@
 {
+  "bootstrap-sha": "749127732699164e19e56b7d9fc716798dfbb5f5",
+
   "packages": {
     ".": {
       "changelog-path": "CHANGELOG.md",
       "release-type": "go",
-      "bump-minor-pre-major": false,
+      "include-v-in-tag": true,
+      "bump-minor-pre-major": true,
       "bump-patch-for-minor-pre-major": false,
       "draft": false,
-      "prerelease": false
+      "plugins": [
+        "sentence-case"
+      ],
+      "initial-version": "0.1.0"
     }
   },
   "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json"

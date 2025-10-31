@@ -87,8 +87,9 @@ release:
   github:
     owner: 0x464e
     name: traefik-opnsense-sync
-  draft: true
-  replace_existing_draft: false
-  use_existing_draft: true
+  #  release-please draft releases are broken, so not using them for now
+  #  draft: true
+  #  replace_existing_draft: false
+  #  use_existing_draft: true
   mode: keep-existing
   include_meta: true
