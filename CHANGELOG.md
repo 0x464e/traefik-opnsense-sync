@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.1](https://github.com/0x464e/traefik-opnsense-sync/compare/v0.3.0...v0.3.1) (2025-11-10)
+
+
+### Bug Fixes
+
+* **logs:** print out actual invalid domain as opposed to empty match ([c8e42f8](https://github.com/0x464e/traefik-opnsense-sync/commit/c8e42f86981cb3c2740ccf890e5f0c264ffe7496))
+
 ## [0.3.0](https://github.com/0x464e/traefik-opnsense-sync/compare/v0.2.0...v0.3.0) (2025-11-10)
 
 
