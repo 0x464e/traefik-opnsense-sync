@@ -37,17 +37,39 @@ type regexCfg struct {
 }
 
 type syncCfg struct {
+	Source         string        `mapstructure:"source"`
 	Interval       time.Duration `mapstructure:"interval"`
 	DescriptionTag string        `mapstructure:"description_tag"`
 	DryRun         bool          `mapstructure:"dry_run"`
 }
 
-type Config struct {
-	Traefik  traefikCfg  `mapstructure:"traefik"`
-	OPNsense opnSenseCfg `mapstructure:"opnsense"`
-	Regex    regexCfg    `mapstructure:"regex"`
-	Sync     syncCfg     `mapstructure:"sync"`
+type kubernetesCfg struct {
+	Resources         []string `mapstructure:"resources"`
+	IncludeNamespaces []string `mapstructure:"include_namespaces"`
+	IgnoreNamespaces  []string `mapstructure:"ignore_namespaces"`
+	IgnoreResources   []string `mapstructure:"ignore_resources"`
 }
+
+type Config struct {
+	Traefik    traefikCfg    `mapstructure:"traefik"`
+	OPNsense   opnSenseCfg   `mapstructure:"opnsense"`
+	Regex      regexCfg      `mapstructure:"regex"`
+	Sync       syncCfg       `mapstructure:"sync"`
+	Kubernetes kubernetesCfg `mapstructure:"kubernetes"`
+}
+
+const (
+	SourceTraefik    = "traefik"
+	SourceKubernetes = "kubernetes"
+)
+
+const (
+	ResourceIngress      = "ingress"
+	ResourceIngressRoute = "ingressroute"
+	ResourceHTTPRoute    = "httproute"
+)
+
+var validKubernetesResources = []string{ResourceIngress, ResourceIngressRoute, ResourceHTTPRoute}
 
 func LoadConfig() (Config, error) {
 	v := viper.NewWithOptions(
@@ -109,9 +131,13 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("regex.exrex_path", "exrex")
 
 	// sync
+	v.SetDefault("sync.source", SourceTraefik)
 	v.SetDefault("sync.dry_run", false)
 	v.SetDefault("sync.interval", "30s")
 	v.SetDefault("sync.description_tag", "Managed by traefik-opnsense-sync")
+
+	// kubernetes
+	v.SetDefault("kubernetes.resources", []string{"ingress"})
 }
 
 // read TOS_*_FILE envs and set the corresponding TOS_* env with the file contents
@@ -162,9 +188,25 @@ func validate(config *Config) error {
 	var errs []string
 
 	// required fields
-	if strings.TrimSpace(config.Traefik.BaseURL) == "" {
-		errs = append(errs, "traefik.base_url is required")
+	switch config.Sync.Source {
+	case SourceTraefik:
+		if strings.TrimSpace(config.Traefik.BaseURL) == "" {
+			errs = append(errs, "traefik.base_url is required")
+		}
+	case SourceKubernetes:
+		if err := validateKubernetesResources(config.Kubernetes.Resources); err != nil {
+			errs = append(errs, err.Error())
+		}
+		if err := validateIgnoreResources(config.Kubernetes.IgnoreResources); err != nil {
+			errs = append(errs, err.Error())
+		}
+		if len(config.Kubernetes.IncludeNamespaces) > 0 && len(config.Kubernetes.IgnoreNamespaces) > 0 {
+			errs = append(errs, "kubernetes.include_namespaces and kubernetes.ignore_namespaces are mutually exclusive")
+		}
+	default:
+		errs = append(errs, fmt.Sprintf("sync.source must be one of %q or %q, got %q", SourceTraefik, SourceKubernetes, config.Sync.Source))
 	}
+
 	if strings.TrimSpace(config.OPNsense.BaseURL) == "" {
 		errs = append(errs, "opnsense.base_url is required")
 	}
@@ -195,7 +237,8 @@ func validate(config *Config) error {
 		errs = append(errs, "traefik.ignore_providers and traefik.include_providers are mutually exclusive")
 	}
 
-	if len(config.Traefik.IncludeEntryPoints) == 0 && len(config.Traefik.IgnoreRouters) == 0 &&
+	if config.Sync.Source == SourceTraefik &&
+		len(config.Traefik.IncludeEntryPoints) == 0 && len(config.Traefik.IgnoreRouters) == 0 &&
 		len(config.Traefik.IncludeProviders) == 0 && len(config.Traefik.IgnoreProviders) == 0 {
 		log.Println("[Warning] No Traefik filters configured; all routers will be considered for synchronization. " +
 			"If this is not intended, configure at least one of traefik.include_entrypoints, traefik.ignore_routers, traefik.include_providers or traefik.ignore_providers.")
@@ -211,6 +254,34 @@ func validateIgnoreRouters(routers []string) error {
 	for _, router := range routers {
 		if !strings.Contains(router, "@") {
 			return fmt.Errorf("ignore_routers entry %q must include provider suffix, e.g. 'router@docker' or 'router@file'", router)
+		}
+	}
+	return nil
+}
+
+func validateKubernetesResources(resources []string) error {
+	if len(resources) == 0 {
+		return fmt.Errorf("kubernetes.resources must not be empty when sync.source is %q", SourceKubernetes)
+	}
+	for _, resource := range resources {
+		valid := false
+		for _, allowed := range validKubernetesResources {
+			if resource == allowed {
+				valid = true
+				break
+			}
+		}
+		if !valid {
+			return fmt.Errorf("kubernetes.resources entry %q must be one of %v", resource, validKubernetesResources)
+		}
+	}
+	return nil
+}
+
+func validateIgnoreResources(resources []string) error {
+	for _, resource := range resources {
+		if !strings.Contains(resource, "@") {
+			return fmt.Errorf("kubernetes.ignore_resources entry %q must include kind suffix, e.g. 'my-ingress.default@ingress'", resource)
 		}
 	}
 	return nil

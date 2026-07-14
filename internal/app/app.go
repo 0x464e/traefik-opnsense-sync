@@ -15,12 +15,17 @@ type App struct {
 	interval time.Duration
 }
 
-func NewApp(cfg *config.Config) *App {
+func NewApp(cfg *config.Config) (*App, error) {
+	runner, err := syncer.NewRunner(cfg)
+	if err != nil {
+		return nil, err
+	}
+
 	return &App{
 		cfg:      cfg,
-		runner:   syncer.NewRunner(cfg),
+		runner:   runner,
 		interval: cfg.Sync.Interval,
-	}
+	}, nil
 }
 
 func (a *App) Run(ctx context.Context) error {

@@ -1,0 +1,46 @@
+# Example RBAC for running traefik-opnsense-sync with `sync.source: kubernetes`.
+#
+# The daemon authenticates using its pod's in-cluster service account only (no
+# kubeconfig support), and lists the configured `kubernetes.resources` kinds
+# cluster-wide. Grant only the rules for the resource kinds you actually enable
+# in `kubernetes.resources` (see config.example.yml) - the two CRD-backed rules
+# below are commented out since they require the corresponding CRDs
+# (Traefik / Gateway API) to be installed in the cluster.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: traefik-opnsense-sync
+  namespace: default
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: traefik-opnsense-sync
+rules:
+  # kubernetes.resources: ["ingress"] (default)
+  - apiGroups: ["networking.k8s.io"]
+    resources: ["ingresses"]
+    verbs: ["get", "list"]
+
+  # kubernetes.resources: ["ingressroute"] - requires Traefik CRDs installed
+  # - apiGroups: ["traefik.io"]
+  #   resources: ["ingressroutes"]
+  #   verbs: ["get", "list"]
+
+  # kubernetes.resources: ["httproute"] - requires Gateway API CRDs installed
+  # - apiGroups: ["gateway.networking.k8s.io"]
+  #   resources: ["httproutes"]
+  #   verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: traefik-opnsense-sync
+subjects:
+  - kind: ServiceAccount
+    name: traefik-opnsense-sync
+    namespace: default
+roleRef:
+  kind: ClusterRole
+  name: traefik-opnsense-sync
+  apiGroup: rbac.authorization.k8s.io

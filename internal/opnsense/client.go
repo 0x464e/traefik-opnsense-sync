@@ -3,6 +3,7 @@ package opnsense
 import (
 	"context"
 	"net/http"
+	"net/url"
 	"strings"
 
 	"github.com/0x464e/traefik-opnsense-sync/internal/httpx"
@@ -75,10 +76,14 @@ func (c *client) FindHostOverrideUUID(ctx context.Context, hostOverride string) 
 }
 
 func (c *client) GetHostAliases(ctx context.Context, hostOverrideUUID string) ([]model.HostAlias, error) {
-	url := c.baseURL + searchHostAliasApi + hostOverrideUUID
+	// searchHostAliasAction takes no route parameter; it only filters by the
+	// "host" query parameter (OPNsense\Unbound\Api\SettingsController::searchHostAliasAction).
+	// Without it, the API returns every host alias in the Unbound config,
+	// regardless of which host override it belongs to.
+	endpoint := c.baseURL + searchHostAliasApi + "?host=" + url.QueryEscape(hostOverrideUUID)
 
 	var resp searchHostResponse
-	if err := httpx.JsonRequest(ctx, c.http, http.MethodGet, url, nil, &resp, c.apiKey, c.apiSecret); err != nil {
+	if err := httpx.JsonRequest(ctx, c.http, http.MethodGet, endpoint, nil, &resp, c.apiKey, c.apiSecret); err != nil {
 		return nil, err
 	}
 

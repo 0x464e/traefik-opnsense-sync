@@ -3,29 +3,51 @@ package syncer
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log"
 
 	"github.com/0x464e/traefik-opnsense-sync/internal/config"
+	"github.com/0x464e/traefik-opnsense-sync/internal/kubernetes"
 	"github.com/0x464e/traefik-opnsense-sync/internal/model"
 	"github.com/0x464e/traefik-opnsense-sync/internal/opnsense"
 	"github.com/0x464e/traefik-opnsense-sync/internal/traefik"
 )
 
+// Source produces the desired set of DNS host aliases for the current sync
+// cycle, regardless of where those hostnames actually come from.
+type Source interface {
+	DesiredAliases(ctx context.Context) ([]model.HostAlias, error)
+}
+
 type Runner struct {
 	engine       *Engine
-	traefik      traefik.Client
+	source       Source
 	opnsense     opnsense.Client
 	hostOverride string
 	dryRun       bool
 }
 
-func NewRunner(config *config.Config) *Runner {
+func NewRunner(config *config.Config) (*Runner, error) {
+	source, err := newSource(config)
+	if err != nil {
+		return nil, fmt.Errorf("init source: %w", err)
+	}
+
 	return &Runner{
 		engine:       newEngine(config),
-		traefik:      traefik.NewClient(config.Traefik.BaseURL, config.Traefik.VerifyTLS, config.Traefik.Username, config.Traefik.Password),
+		source:       source,
 		opnsense:     opnsense.NewClient(config.OPNsense.BaseURL, config.OPNsense.VerifyTLS, config.OPNsense.APIKey, config.OPNsense.APISecret),
 		hostOverride: config.OPNsense.HostOverride,
 		dryRun:       config.Sync.DryRun,
+	}, nil
+}
+
+func newSource(cfg *config.Config) (Source, error) {
+	switch cfg.Sync.Source {
+	case "kubernetes":
+		return kubernetes.NewSource(cfg)
+	default:
+		return traefik.NewSource(cfg), nil
 	}
 }
 
@@ -43,12 +65,12 @@ func (r *Runner) Sync(ctx context.Context) error {
 		return err
 	}
 
-	routers, err := r.traefik.GetRouters(ctx)
+	desiredAliases, err := r.source.DesiredAliases(ctx)
 	if err != nil {
 		return err
 	}
 
-	plan, err := r.engine.computePlan(routers, currentHostAliases)
+	plan, err := r.engine.computePlan(desiredAliases, currentHostAliases)
 	if err != nil {
 		return err
 	}

@@ -4,14 +4,6 @@
     <h3>Automated synchronization of DNS overrides from Traefik reverse proxy entries</h3>
 </div>
 
-<div align='center'>
-
-[![Go Report Card][go-report-card-shield]][go-report-card-url]
-[![GitHub Release][github-release-shield]][github-release-url]
-[![discord][discord-shield]][discord-url]
-
-</div>
-
 ---
 
 ## Table of Contents
@@ -24,6 +16,7 @@
 - [About The Project](#about-the-project)
 - [Features](#features)
     + [Traefik](#traefik)
+    + [Kubernetes](#kubernetes)
     + [OPNsense](#opnsense)
 - [Working Principle & Long Explanation](#working-principle--long-explanation)
     * [Example scenario](#example-scenario)
@@ -34,16 +27,17 @@
     * [Traefik API Access](#traefik-api-access)
     * [Exrex installation (for regex rule expansion, for non-docker installs, optional)](#exrex-installation-for-regex-rule-expansion-for-non-docker-installs-optional)
 - [Installation & Running](#installation--running)
-    * [Pre-Built Binary](#pre-built-binary)
     * [Docker](#docker)
         + [Simple Docker Run](#simple-docker-run)
         + [Docker Compose](#docker-compose)
+    * [Build From Source](#build-from-source)
 - [Configuration](#configuration)
     * [Config File Location](#config-file-location)
     * [Config Structure](#config-structure)
     * [Config Syntax](#config-syntax)
     * [Required Config Entries](#required-config-entries)
     * [Filtering Traefik Routers](#filtering-traefik-routers)
+    * [Filtering Kubernetes Resources](#filtering-kubernetes-resources)
 - [Common Issues](#common-issues)
     * [TLS: Failed to verify certificate](#tls-failed-to-verify-certificate)
     * [Unable to Access the Traefik API Before Creating DNS Override](#unable-to-access-the-traefik-api-before-creating-dns-override)
@@ -72,9 +66,10 @@ Home or Pi-Hole).
 
 ## Features
 
-- Sync once or run as a sync service that polls Traefik API at configurable intervals
+- Sync once or run as a sync service that polls the configured source at configurable intervals
 - Run as a native binary or Docker container (as a simple image or via Docker Compose)
 - Supports dry-runs (no changes made to OPNsense)
+- Two selectable hostname sources (`sync.source`): Traefik API, or Kubernetes cluster resources
 - Supports Traefik v3.x (maybe v2.x works? No idea)
 - Supports OPNsense Unbound (tested by me actively on v25.x and any future versions, don't know about older versions)
 
@@ -87,6 +82,17 @@ Home or Pi-Hole).
       ``(Host(`app.example.com`) || Host(`app2.example.com`)) && !Host(`app3.example.com`) && PathPrefix(`/prefix`)``)
 - Supports filtering out routers based on entrypoints, providers, and router names
 - Supports basic auth for secured Traefik APIs
+
+#### Kubernetes
+
+- Alternative to the Traefik source (`sync.source: kubernetes`) — reads hostnames directly from a
+  Kubernetes cluster instead of Traefik's API
+- Supports core `Ingress` (`spec.rules[].host`), Traefik `IngressRoute` CRDs
+  (`spec.routes[].match`, including the same `Host()`/`HostRegexp()` rule syntax and regex
+  expansion as the Traefik source), and Gateway API `HTTPRoute` (`spec.hostnames`)
+- Authenticates using the pod's in-cluster service account only (no kubeconfig support) — see
+  [`deploy/k8s/rbac-example.yaml`](deploy/k8s/rbac-example.yaml) for the minimum required RBAC
+- Supports filtering by namespace and by individual resource
 
 #### OPNsense
 
@@ -247,17 +253,7 @@ I can guarantee compatibility with version 0.12.0.
 
 ## Installation & Running
 
-You can either download a pre-built binary matching your OS and architecture from the releases page,
-run via Docker, or build from source.
-
-### Pre-Built Binary
-
-Head over to the [releases page][github-release-url] and download the appropriate binary for your system.
-
-You can run the binary directly (after ensuring you have set up configuration correctly,
-see [Configuration](#configuration) section below).
-Although if you plan to use this program as a service that continuously syncs at intervals,
-you probably want to set it up as a systemd service, or equivalent.
+You can either run via Docker, or build from source.
 
 ### Docker
 
@@ -281,7 +277,7 @@ docker run \
     -e TOS_OPNSENSE_API_SECRET=mysecret \
     -e TOS_OPNSENSE_HOST_OVERRIDE=reverse-proxy.mydomain.com \
     -e TOS_OPNSENSE_VERIFY_TLS=false \
-    0x464e/traefik-opnsense-sync:latest
+    docker.knifeinthesocket.com/influential-binary/opnsense-hosts-sync:latest
 ```
 
 or you can mount a config file into the container:
@@ -289,7 +285,7 @@ or you can mount a config file into the container:
 ```bash
 docker run \
     -v /path/to/your/config.yml:/app/config.yml \
-    0x464e/traefik-opnsense-sync:latest
+    docker.knifeinthesocket.com/influential-binary/opnsense-hosts-sync:latest
 ```
 
 #### Docker Compose
@@ -299,7 +295,7 @@ An example `docker-compose.yml` could look like:
 ```yaml
 services:
   traefik-opnsense-sync:
-    image: 0x464e/traefik-opnsense-sync:latest
+    image: docker.knifeinthesocket.com/influential-binary/opnsense-hosts-sync:latest
     # either specify config as env
     environment:
       - TOS_SYNC_DRY_RUN=true
@@ -316,6 +312,25 @@ services:
 #       - /path/to/your/config.yml:/app/config.yml 
 ```
 
+### Build From Source
+
+Requires Go 1.25+.
+
+```bash
+git clone https://git.knifeinthesocket.com/influential-binary/opnsense-hosts-sync.git
+cd opnsense-hosts-sync
+go build -o traefik-opnsense-sync ./cmd/traefik-opnsense-sync
+```
+
+You can then run the resulting binary directly (after ensuring you have set up configuration
+correctly, see [Configuration](#configuration) section below). If you plan to use this program as
+a service that continuously syncs at intervals, you probably want to set it up as a systemd
+service, or equivalent.
+
+If you need regex rule expansion (`HostRegexp(...)`) outside of Docker, also see the
+[Exrex installation](#exrex-installation-for-regex-rule-expansion-for-non-docker-installs-optional)
+section below.
+
 ## Configuration
 
 All config options are documented in the [`config.example.yml`](config.example.yml) file in the repository.  
@@ -329,12 +344,17 @@ If you want to use a different path for the config file, set environment variabl
 
 ### Config Structure
 
-The config is structured into four main sections: `traefik`, `opnsense`, `regex`, and `sync`.
+The config is structured into five main sections: `traefik`, `kubernetes`, `opnsense`, `regex`, and
+`sync`.
 
-- `traefik`: Configuration related to Traefik API access and filtering of routers
+- `traefik`: Configuration related to Traefik API access and filtering of routers. Only used when
+  `sync.source` is `traefik` (the default).
+- `kubernetes`: Configuration related to which Kubernetes resources to scan and namespace/resource
+  filtering. Only used when `sync.source` is `kubernetes`.
 - `opnsense`: Configuration related to OPNsense API access and DNS override management
 - `regex`: Configuration related to regex expansion (if used)
-- `sync`: Overall syncing behaviour configuration, such as dry-run or sync interval
+- `sync`: Overall syncing behaviour configuration, such as source selection, dry-run, or sync
+  interval
 
 All config options can be set either via a YAML config file (default path `./config.yml`),
 or via environment variables (prefix `TOS_`, e.g. `TOS_SYNC_DRY_RUN`).
@@ -360,13 +380,18 @@ You can also use this for secrets mounted at runtime, e.g. Docker secrets patter
 
 At minimum, you need to set all the **required** config entries:
 
-- `traefik.base_url`: Base URL of your Traefik API (e.g. `https://traefik.mydomain.com`)
+- `traefik.base_url`: Base URL of your Traefik API (e.g. `https://traefik.mydomain.com`) — required
+  only when `sync.source` is `traefik` (the default)
 - `opnsense.base_url`: Base URL of your OPNsense API (e.g. `https://192.168.10.1`)
 - `opnsense.api_key`: OPNsense API key (see [OPNsense API Access](#opnsense-api-access) section for instructions)
 - `opnsense.api_secret`: OPNsense API secret
 - `opnsense.host_override`: The existing OPNsense Unbound host override that all automatically managed aliases will
   point to (see [Create Initial Reverse Proxy Host Override](#create-initial-reverse-proxy-host-override) section for
   instructions)
+
+If you set `sync.source: kubernetes`, `traefik.base_url` is not required, but the application must
+be running inside the target Kubernetes cluster with a service account granted the RBAC in
+[`deploy/k8s/rbac-example.yaml`](deploy/k8s/rbac-example.yaml).
 
 ### Filtering Traefik Routers
 
@@ -403,6 +428,24 @@ You can control which routers are considered for DNS override syncing with filte
 * **By router name**: Ignore specific routers by their full name `<router>@<provider>`.  
   Example: `traefik.ignore_routers: ["my-app@docker"]`  
   Env: `TOS_TRAEFIK_IGNORE_ROUTERS="my-app@docker"`
+
+### Filtering Kubernetes Resources
+
+When `sync.source: kubernetes` is set, hostnames come from `Ingress`, `IngressRoute`, and/or
+`HTTPRoute` resources instead. Pick which kinds to scan with `kubernetes.resources`
+(default: `["ingress"]`; `ingressroute` and `httproute` require the Traefik / Gateway API CRDs to
+be installed in the cluster).
+
+You can control which resources are considered for DNS override syncing with filters:
+
+* **By namespace**: Include or exclude by namespace. Mutually exclusive.  
+  Examples: `kubernetes.include_namespaces: ["default"]`, `kubernetes.ignore_namespaces: ["kube-system"]`
+* **By individual resource**: Ignore specific resources by `<name>.<namespace>@<kind>`.  
+  Example: `kubernetes.ignore_resources: ["my-app.default@ingress"]`
+
+See [`config.example.yml`](config.example.yml) for the full list of options, and
+[`deploy/k8s/rbac-example.yaml`](deploy/k8s/rbac-example.yaml) for the RBAC the service account
+needs — only grant rules for the resource kinds you actually enable.
 
 ## Common Issues
 
@@ -485,17 +528,5 @@ The router name is auto-generated, you can check it from your Traefik dashboard,
 
 
 <!-- MARKDOWN LINKS & IMAGES -->
-
-[go-report-card-shield]: https://goreportcard.com/badge/github.com/0x464e/traefik-opnsense-sync
-
-[go-report-card-url]: https://goreportcard.com/report/github.com/0x464e/traefik-opnsense-sync
-
-[discord-shield]: https://img.shields.io/badge/Discord-join-738ad6?logo=discord&logoColor=white
-
-[discord-url]: https://discord.gg/SQCzaVeBTa
-
-[github-release-shield]: https://img.shields.io/github/v/release/0x464e/traefik-opnsense-sync?logo=github&sort=semver
-
-[github-release-url]: https://github.com/0x464e/traefik-opnsense-sync/releases
 
 [exrex-url]: https://pypi.org/project/exrex/

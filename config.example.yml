@@ -26,7 +26,7 @@
 # Config Starts Here
 
 traefik:
-  # REQUIRED (no default): Base URL to Traefik API
+  # REQUIRED (no default) when sync.source is "traefik": Base URL to Traefik API
   # Examples: "http://192.168.10.10:8080" or "https://traefik.mydomain.com"
   # Note: if you want/need to access the Traefik API over Traefik itself, make sure
   # you have a manual DNS override set for it. This is only manual DNS override you'd need
@@ -95,6 +95,12 @@ regex:
   # exrex_path: "/home/user/exrex/exrex"
 
 sync:
+  # Optional: which source to derive desired hostnames from: "traefik" or "kubernetes"
+  # When "traefik", the traefik.* section above is used (and required).
+  # When "kubernetes", the kubernetes.* section below is used instead.
+  # (default: "traefik")
+  # source: "kubernetes"
+
   # Optional: dry run mode. If true, changes are logged but not applied to OPNsense
   # (default: false)
   # dry_run: true
@@ -106,3 +112,34 @@ sync:
   # Optional: string written into OPNsense alias descriptions for traceability
   # (default: "Managed by traefik-opnsense-sync")
   # description_tag: "DONT TOUCH ME - automatically synced"
+
+# Only used when sync.source is "kubernetes". Connects to the Kubernetes API using the
+# pod's in-cluster service account credentials (no kubeconfig support) — see
+# deploy/k8s/rbac-example.yaml for the minimum required RBAC permissions.
+# kubernetes:
+#   # Optional list of resource kinds to scan for hostnames.
+#   # "ingress"      -> core networking.k8s.io/v1 Ingress, reads spec.rules[].host
+#   # "ingressroute" -> Traefik traefik.io/v1alpha1 IngressRoute CRD, reads spec.routes[].match
+#   #                   (requires the Traefik CRDs to be installed in the cluster)
+#   # "httproute"    -> Gateway API gateway.networking.k8s.io HTTPRoute, reads spec.hostnames
+#   #                   (requires the Gateway API CRDs to be installed in the cluster)
+#   # (default: ["ingress"])
+#   resources:
+#     - "ingress"
+#     - "ingressroute"
+#     - "httproute"
+#
+#   # Optional list of namespaces to include exclusively. Mutually exclusive with ignore_namespaces
+#   # (default: [] (all namespaces included))
+#   include_namespaces:
+#     - "default"
+#
+#   # Optional list of namespaces to ignore. Mutually exclusive with include_namespaces
+#   # (default: [] (no namespaces ignored))
+#   ignore_namespaces:
+#     - "kube-system"
+#
+#   # Optional list of resources to ignore, formatted as "name.namespace@kind"
+#   # (default: [] (no resources ignored))
+#   ignore_resources:
+#     - "traefik-dashboard.kube-system@ingressroute"

@@ -1,5 +1,7 @@
 package model
 
+import "strings"
+
 type OpKind int
 
 const (
@@ -27,6 +29,21 @@ type HostAlias struct {
 
 func (h *HostAlias) Key() string {
 	return h.Hostname + "." + h.Domain
+}
+
+// NewHostAliasFromFQDN splits a fully-qualified domain name into a HostAlias's
+// Hostname/Domain parts. It reports false if the FQDN has no dot separator or
+// either resulting part would be empty.
+func NewHostAliasFromFQDN(fqdn, description string) (HostAlias, bool) {
+	hostname, domain, found := strings.Cut(fqdn, ".")
+	if !found || hostname == "" || domain == "" {
+		return HostAlias{}, false
+	}
+	return HostAlias{
+		Hostname:    hostname,
+		Domain:      domain,
+		Description: description,
+	}, true
 }
 
 type Operation struct {

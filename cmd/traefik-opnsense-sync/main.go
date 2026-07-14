@@ -46,7 +46,10 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
-	tosApp := app.NewApp(&cfg)
+	tosApp, err := app.NewApp(&cfg)
+	if err != nil {
+		log.Fatalf("init app: %v", err)
+	}
 
 	if err := tosApp.Run(ctx); err != nil {
 		log.Printf("app exited: %v", err)

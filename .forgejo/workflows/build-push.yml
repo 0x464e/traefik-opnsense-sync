@@ -1,0 +1,188 @@
+name: Build, Push, Release
+
+on:
+  push:
+    branches:
+      - master
+
+concurrency:
+  # Queue releases; never cancel one mid-flight if a newer merge lands.
+  group: release
+  cancel-in-progress: false
+
+# The built-in github.token needs to read the repo and write the result PR
+# comment from the notify job.
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+
+env:
+  DOMAIN: ${{ vars.DOMAIN }}
+  ORGANIZATION: ${{ vars.ORGANIZATION }}
+
+  GIT_HOST: git.${{ vars.DOMAIN }}
+  REGISTRY_HOST: docker.${{ vars.DOMAIN }}
+
+  IMAGE: docker.${{ vars.DOMAIN }}/${{ vars.ORGANIZATION }}/${{ github.event.repository.name }}
+
+jobs:
+  build:
+    runs-on: image-builder
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      pr_number: ${{ steps.pr.outputs.pr_number }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Login to registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY_HOST }}
+          username: ${{ secrets.REGISTRY_USERNAME }}
+          password: ${{ secrets.REGISTRY_PASSWORD }}
+
+      - name: Resolve PR number
+        id: pr
+        env:
+          TOKEN: ${{ secrets.REGISTRY_PASSWORD }}
+        run: |
+          curl -fsSL \
+            -H "Authorization: token ${TOKEN}" \
+            "https://${GIT_HOST}/api/v1/repos/${ORGANIZATION}/${{ github.event.repository.name }}/commits/${GITHUB_SHA}/pull" \
+            > pulls.json
+
+          PR_NUMBER=$(jq -r '.number // empty' pulls.json)
+
+          if [ -z "$PR_NUMBER" ]; then
+            echo "No PR found for commit"
+            exit 1
+          fi
+
+          echo "PR_NUMBER=${PR_NUMBER}" >> $GITHUB_ENV
+          echo "pr_number=${PR_NUMBER}" >> "$GITHUB_OUTPUT"
+
+      - name: Load PR metadata
+        env:
+          TOKEN: ${{ secrets.REGISTRY_PASSWORD }}
+        run: |
+          curl -fsSL \
+            -H "Authorization: token ${TOKEN}" \
+            "https://${GIT_HOST}/api/v1/repos/${ORGANIZATION}/${{ github.event.repository.name }}/pulls/${PR_NUMBER}" \
+            > pr.json
+
+          jq -r '.body // ""' pr.json > pr-body.md
+
+      - name: Extract version
+        id: version
+        run: |
+          VERSION=$(awk '
+            { gsub(/^[ \t]+/, "") }
+            /^## Release/ {capture=1; next}
+            /^## / && capture {exit}
+            capture && /Version:/ {print $2}
+          ' pr-body.md)
+
+          if [ -z "$VERSION" ]; then
+            echo "Missing Version in PR"
+            exit 1
+          fi
+
+          echo "VERSION=${VERSION}" >> $GITHUB_ENV
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+
+      - name: Extract changelog
+        run: |
+          awk '
+            { gsub(/^[ \t]+/, "") }
+            /^## Changelog/ {capture=1; next}
+            /^## / && capture {exit}
+            capture
+          ' pr-body.md > RELEASE_NOTES.md
+
+          if [ ! -s RELEASE_NOTES.md ]; then
+            echo "- No changelog provided" > RELEASE_NOTES.md
+          fi
+
+          cat RELEASE_NOTES.md
+
+      - name: Validate tag does not exist
+        run: |
+          git fetch --tags
+
+          if git rev-parse "$VERSION" >/dev/null 2>&1; then
+            echo "Tag already exists: $VERSION"
+            exit 1
+          fi
+
+      - name: Set build time
+        run: echo "BUILD_TIME=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> $GITHUB_ENV
+
+      - name: Build and push image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          target: runtime
+          push: true
+          build-args: |
+            VERSION=${{ env.VERSION }}
+            COMMIT=${{ github.sha }}
+            BUILD_TIME=${{ env.BUILD_TIME }}
+          tags: |
+            ${{ env.IMAGE }}:${{ env.VERSION }}
+            ${{ env.IMAGE }}:latest
+
+      - name: Create git tag
+        run: |
+          git tag "${{ env.VERSION }}"
+          git push origin "${{ env.VERSION }}"
+
+      - name: Create Forgejo release
+        uses: actions/forgejo-release@v2.13.1
+        with:
+          url: https://${{ env.GIT_HOST }}
+          repo: ${{ env.ORGANIZATION }}/${{ github.event.repository.name }}
+          token: ${{ secrets.REGISTRY_PASSWORD }}
+          tag: ${{ env.VERSION }}
+          name: ${{ env.VERSION }}
+          release-notes-file: RELEASE_NOTES.md
+          hide-archive-link: true
+          skip-assets: true
+          override: true
+          direction: upload
+
+  notify:
+    needs: build
+    runs-on: image-builder
+    if: ${{ always() }}
+    steps:
+      - name: Comment release result
+        env:
+          TOKEN: ${{ github.token }}
+          REPO: ${{ github.event.repository.name }}
+          PR_NUMBER: ${{ needs.build.outputs.pr_number }}
+          VERSION: ${{ needs.build.outputs.version }}
+          IMAGE: ${{ env.IMAGE }}
+          BUILD_RESULT: ${{ needs.build.result }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          if [ -z "$PR_NUMBER" ]; then
+            echo "No PR number; skipping comment."
+            exit 0
+          fi
+
+          if [ "$BUILD_RESULT" = "success" ]; then
+            BODY="✅ Published \`${IMAGE}:${VERSION}\`"
+          else
+            BODY="❌ Release build failed. See the [run log](${RUN_URL})."
+          fi
+
+          curl -fsSL -X POST \
+            -H "Authorization: token ${TOKEN}" \
+            -H "Content-Type: application/json" \
+            -d "$(jq -n --arg b "$BODY" '{body: $b}')" \
+            "https://${GIT_HOST}/api/v1/repos/${ORGANIZATION}/${REPO}/issues/${PR_NUMBER}/comments"

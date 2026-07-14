@@ -1,42 +1,27 @@
 package syncer
 
 import (
-	"log"
 	"sort"
 	"strings"
 
 	"github.com/0x464e/traefik-opnsense-sync/internal/config"
-	"github.com/0x464e/traefik-opnsense-sync/internal/exrex"
 	"github.com/0x464e/traefik-opnsense-sync/internal/model"
-	"github.com/0x464e/traefik-opnsense-sync/internal/traefik"
 )
 
+// Engine reconciles a source-agnostic set of desired DNS host aliases
+// against the aliases currently present in OPNsense, producing a create/delete
+// Plan. It only considers OPNsense aliases tagged with descTag as owned by us.
 type Engine struct {
-	regexGenerator     *exrex.Exrex
-	includeEntryPoints []string
-	ignoreRouters      []string
-	includeProviders   []string
-	ignoreProviders    []string
-	descTag            string
+	descTag string
 }
 
 func newEngine(cfg *config.Config) *Engine {
 	return &Engine{
-		regexGenerator:     exrex.NewExrexRunner(cfg),
-		includeEntryPoints: cfg.Traefik.IncludeEntryPoints,
-		ignoreRouters:      cfg.Traefik.IgnoreRouters,
-		includeProviders:   cfg.Traefik.IncludeProviders,
-		ignoreProviders:    cfg.Traefik.IgnoreProviders,
-		descTag:            cfg.Sync.DescriptionTag,
+		descTag: cfg.Sync.DescriptionTag,
 	}
 }
 
-func (e *Engine) computePlan(routers []traefik.Router, aliases []model.HostAlias) (*model.Plan, error) {
-	desiredAliases, err := e.desiredFromTraefik(routers)
-	if err != nil {
-		return nil, err
-	}
-
+func (e *Engine) computePlan(desiredAliases []model.HostAlias, aliases []model.HostAlias) (*model.Plan, error) {
 	currentAliases, err := e.currentFromOPNsense(aliases)
 	if err != nil {
 		return nil, err
@@ -105,121 +90,4 @@ func (e *Engine) currentFromOPNsense(aliases []model.HostAlias) ([]model.HostAli
 	}
 
 	return current, nil
-}
-
-func (e *Engine) desiredFromTraefik(routers []traefik.Router) ([]model.HostAlias, error) {
-	var desired []traefik.Router
-
-	for _, router := range routers {
-		// filter by entrypoints
-		if len(e.includeEntryPoints) > 0 {
-			matched := false
-			for _, ep := range router.EntryPoints {
-				for _, includeEp := range e.includeEntryPoints {
-					if ep == includeEp {
-						matched = true
-						break
-					}
-				}
-				if matched {
-					break
-				}
-			}
-			if !matched {
-				continue
-			}
-		}
-
-		// filter by providers
-		if len(e.includeProviders) > 0 {
-			matched := false
-			for _, includeProvider := range e.includeProviders {
-				if router.Provider == includeProvider {
-					matched = true
-					break
-				}
-			}
-			if !matched {
-				continue
-			}
-		}
-		if len(e.ignoreProviders) > 0 {
-			ignored := false
-			for _, ignoreProvider := range e.ignoreProviders {
-				if router.Provider == ignoreProvider {
-					ignored = true
-					break
-				}
-			}
-			if ignored {
-				continue
-			}
-		}
-
-		// filter by router name
-		if len(e.ignoreRouters) > 0 {
-			ignored := false
-			for _, ignoreRouter := range e.ignoreRouters {
-				if router.Name == ignoreRouter {
-					ignored = true
-					break
-				}
-			}
-			if ignored {
-				continue
-			}
-		}
-
-		desired = append(desired, router)
-	}
-
-	desiredAliases, err := e.routersToHostAliases(desired)
-	if err != nil {
-		return nil, err
-	}
-
-	return desiredAliases, nil
-}
-
-func (e *Engine) routersToHostAliases(routers []traefik.Router) ([]model.HostAlias, error) {
-	var aliases []model.HostAlias
-
-	var parsedDomains []traefik.DomainMatch
-	for _, router := range routers {
-		domains, err := traefik.ParseDomains(router.Rule)
-		if err != nil {
-			return nil, err
-		}
-
-		parsedDomains = append(parsedDomains, domains...)
-	}
-
-	var plainDomains []string
-	for _, domain := range parsedDomains {
-		if domain.Kind == traefik.DomainLiteral {
-			plainDomains = append(plainDomains, domain.Value)
-		} else if domain.Kind == traefik.DomainRegex {
-			generatedDomains, err := e.regexGenerator.Generate(domain.Value)
-			if err != nil {
-				log.Println("failed to generate domains from regex:", domain.Value, "error:", err)
-				continue
-			}
-			plainDomains = append(plainDomains, generatedDomains...)
-		}
-	}
-
-	for _, plainDomain := range plainDomains {
-		hostname, domain, found := strings.Cut(plainDomain, ".")
-		if !found || hostname == "" || domain == "" {
-			log.Println("skipping invalid domain:", plainDomain)
-			continue
-		}
-		aliases = append(aliases, model.HostAlias{
-			Hostname:    hostname,
-			Domain:      domain,
-			Description: e.descTag,
-		})
-	}
-
-	return aliases, nil
 }
