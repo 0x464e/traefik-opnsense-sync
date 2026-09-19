@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.2](https://github.com/0x464e/traefik-opnsense-sync/compare/v0.3.1...v0.3.2) (2026-09-19)
+
+
+### Bug Fixes
+
+* **opnsense:** fix invalid opnsense api request silently ignoring search criteria ([71ea579](https://github.com/0x464e/traefik-opnsense-sync/commit/71ea579093a27b8a9a60a1ad6b841ae1c2789851)), closes [#6](https://github.com/0x464e/traefik-opnsense-sync/issues/6)
+
 ## [0.3.1](https://github.com/0x464e/traefik-opnsense-sync/compare/v0.3.0...v0.3.1) (2025-11-10)
 
 
