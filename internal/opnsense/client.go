@@ -3,6 +3,7 @@ package opnsense
 import (
 	"context"
 	"net/http"
+	"net/url"
 	"strings"
 
 	"github.com/0x464e/traefik-opnsense-sync/internal/httpx"
@@ -43,10 +44,10 @@ func NewClient(baseURL string, verifyTls bool, apiKey, apiSecret string) Client 
 }
 
 func (c *client) getHostOverrides(ctx context.Context) ([]hostOverride, error) {
-	url := c.baseURL + searchHostOverrideApi
+	endpoint := c.baseURL + searchHostOverrideApi
 
 	var resp searchHostResponse
-	if err := httpx.JsonRequest(ctx, c.http, http.MethodGet, url, nil, &resp, c.apiKey, c.apiSecret); err != nil {
+	if err := httpx.JsonRequest(ctx, c.http, http.MethodGet, endpoint, nil, &resp, c.apiKey, c.apiSecret); err != nil {
 		return nil, err
 	}
 
@@ -75,10 +76,13 @@ func (c *client) FindHostOverrideUUID(ctx context.Context, hostOverride string) 
 }
 
 func (c *client) GetHostAliases(ctx context.Context, hostOverrideUUID string) ([]model.HostAlias, error) {
-	url := c.baseURL + searchHostAliasApi + hostOverrideUUID
+	params := url.Values{}
+	params.Set("host", hostOverrideUUID)
+
+	endpoint := c.baseURL + searchHostAliasApi + "?" + params.Encode()
 
 	var resp searchHostResponse
-	if err := httpx.JsonRequest(ctx, c.http, http.MethodGet, url, nil, &resp, c.apiKey, c.apiSecret); err != nil {
+	if err := httpx.JsonRequest(ctx, c.http, http.MethodGet, endpoint, nil, &resp, c.apiKey, c.apiSecret); err != nil {
 		return nil, err
 	}
 
@@ -95,7 +99,7 @@ func (c *client) GetHostAliases(ctx context.Context, hostOverrideUUID string) ([
 }
 
 func (c *client) AddHostAlias(ctx context.Context, alias model.HostAlias, hostOverrideUUID string) (string, error) {
-	url := c.baseURL + addHostAliasApi
+	endpoint := c.baseURL + addHostAliasApi
 
 	aliasCreate := hostAliasCreate{
 		Enabled:     "1",
@@ -114,25 +118,25 @@ func (c *client) AddHostAlias(ctx context.Context, alias model.HostAlias, hostOv
 	}
 
 	var resp addResp
-	if err := httpx.JsonRequest(ctx, c.http, http.MethodPost, url, addReq{Alias: aliasCreate}, &resp, c.apiKey, c.apiSecret); err != nil {
+	if err := httpx.JsonRequest(ctx, c.http, http.MethodPost, endpoint, addReq{Alias: aliasCreate}, &resp, c.apiKey, c.apiSecret); err != nil {
 		return "", err
 	}
 	return resp.UUID, nil
 }
 
 func (c *client) DeleteHostAlias(ctx context.Context, alias model.HostAlias) error {
-	url := c.baseURL + deleteHostAliasApi + alias.UUID
+	endpoint := c.baseURL + deleteHostAliasApi + alias.UUID
 
-	if err := httpx.JsonRequest(ctx, c.http, http.MethodPost, url, nil, nil, c.apiKey, c.apiSecret); err != nil {
+	if err := httpx.JsonRequest(ctx, c.http, http.MethodPost, endpoint, nil, nil, c.apiKey, c.apiSecret); err != nil {
 		return err
 	}
 	return nil
 }
 
 func (c *client) ReconfigureUnbound(ctx context.Context) error {
-	url := c.baseURL + reconfigureApi
+	endpoint := c.baseURL + reconfigureApi
 
-	if err := httpx.JsonRequest(ctx, c.http, http.MethodPost, url, nil, nil, c.apiKey, c.apiSecret); err != nil {
+	if err := httpx.JsonRequest(ctx, c.http, http.MethodPost, endpoint, nil, nil, c.apiKey, c.apiSecret); err != nil {
 		return err
 	}
 	return nil

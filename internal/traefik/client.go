@@ -33,11 +33,11 @@ func NewClient(baseURL string, verifyTls bool, username, password string) Client
 }
 
 func (c *client) GetRouters(ctx context.Context) ([]Router, error) {
-	url := c.baseURL + routersApi
+	endpoint := c.baseURL + routersApi
 
 	var routers []Router
 
-	if err := httpx.JsonRequest(ctx, c.http, http.MethodGet, url, nil, &routers, c.username, c.password); err != nil {
+	if err := httpx.JsonRequest(ctx, c.http, http.MethodGet, endpoint, nil, &routers, c.username, c.password); err != nil {
 		return nil, err
 	}
 	return routers, nil
