@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.3](https://github.com/0x464e/traefik-opnsense-sync/compare/v0.3.2...v0.3.3) (2026-09-21)
+
+
+### Continuous Integration
+
+* **release-please:** update changelog sections to include more common semantic commit entries ([2165bb4](https://github.com/0x464e/traefik-opnsense-sync/commit/2165bb4994f8051b550d6933ba98db25efbde2a2))
+
 ## [0.3.2](https://github.com/0x464e/traefik-opnsense-sync/compare/v0.3.1...v0.3.2) (2026-09-19)
 
 
